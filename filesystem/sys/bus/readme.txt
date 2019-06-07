@@ -1,0 +1,1 @@
+Ensure that a symbolic link named 'w1' exists in this directory, which points to the system's w1 directory (e.g. /sys/bus/w1).

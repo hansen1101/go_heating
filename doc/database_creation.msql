@@ -1,0 +1,158 @@
+CREATE TABLE IF NOT EXISTS percepts (
+	p_id INT NOT NULL AUTO_INCREMENT,
+	OutsideTemp INT NULL DEFAULT NULL,
+	BoilerMidTemp INT NULL DEFAULT NULL,
+	BoilerTopTemp INT NULL DEFAULT NULL,
+	KettleTemp INT NULL DEFAULT NULL,
+	
+	H1ForeRunTemp INT NULL DEFAULT NULL,
+	H1ReverseRunTemp INT NULL DEFAULT NULL,
+	H2ForeRunTemp INT NULL DEFAULT NULL,
+	WForeRunTemp INT NULL DEFAULT NULL,
+	WReverseRunTemp INT NULL DEFAULT NULL,
+	
+	PRIMARY KEY(p_id),
+	UNIQUE value_key (OutsideTemp,BoilerMidTemp,BoilerTopTemp,KettleTemp,H1ForeRunTemp,H1ReverseRunTemp,H2ForeRunTemp,WForeRunTemp,WReverseRunTemp)
+      
+) ENGINE=InnoDB DEFAULT CHARSET=latin1;
+
+CREATE TABLE IF NOT EXISTS system_states (
+    s_id INT NOT NULL AUTO_INCREMENT,
+	time INT NOT NULL DEFAULT 0,
+	burnerState BIT(1) NULL DEFAULT 0,
+	wPumpState BIT(1) NULL DEFAULT 0,
+	hPumpState BIT(1) NULL DEFAULT 0,
+	hPumpFreq FLOAT SIGNED NULL DEFAULT 0.0,
+
+	PRIMARY KEY(s_id),
+	UNIQUE system_values (time,burnerState,wPumpState,hPumpFreq)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1;
+
+CREATE TABLE IF NOT EXISTS adp_states (
+    s_id INT NOT NULL AUTO_INCREMENT,
+	kettleLevel INT UNSIGNED NULL DEFAULT NULL,
+	circulationValue FLOAT UNSIGNED NULL DEFAULT NULL,
+	hForeReverseDiffDelta FLOAT SIGNED NULL DEFAULT NULL,
+	hReverseDelta FLOAT SIGNED NULL DEFAULT NULL,
+	hForeRunTempDelta FLOAT SIGNED NULL DEFAULT NULL,
+	hEnergyPotential INT UNSIGNED NULL DEFAULT NULL,
+	hEnergyRequirement INT UNSIGNED NULL DEFAULT NULL,
+	boilerDelta INT SIGNED NULL DEFAULT NULL,
+	wEnergyRequirement INT UNSIGNED NULL DEFAULT NULL,
+	wEnergyPotential INT UNSIGNED NULL DEFAULT NULL,
+	wLoadPotential INT SIGNED NULL DEFAULT NULL,
+	uValue FLOAT SIGNED NULL DEFAULT 0.0,
+	counter BIGINT UNSIGNED NULL DEFAULT 0,
+
+	PRIMARY KEY(s_id),
+	UNIQUE value_key (kettleLevel,circulationValue,hForeReverseDiffDelta,hReverseDelta,hForeRunTempDelta,hEnergyPotential,hEnergyRequirement,boilerDelta,wEnergyRequirement,wEnergyPotential,wLoadPotential)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1;
+
+CREATE TABLE IF NOT EXISTS actions (
+    a_id INT NOT NULL AUTO_INCREMENT,
+	burnerState BIT(1) NULL DEFAULT 0,
+	wPumpState BIT(1) NULL DEFAULT 0,
+	hPumpState BIT(1) NULL DEFAULT 0,
+	hPumpFreq FLOAT SIGNED NULL DEFAULT 0.0,
+
+	PRIMARY KEY(a_id),
+	UNIQUE action_settings (burnerState,wPumpState,hPumpState,hPumpFreq),
+	INDEX action_value (burnerState,wPumpState,hPumpState,hPumpFreq)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1;
+
+CREATE TABLE IF NOT EXISTS q_states (
+	q_id INT NOT NULL AUTO_INCREMENT,
+	state INT NULL,
+	action INT NULL,
+	qValue FLOAT SIGNED NULL DEFAULT 0.0,
+	count BIGINT UNSIGNED NULL DEFAULT 0,
+	
+	PRIMARY KEY(q_id),
+	UNIQUE q_state_value(state,action),
+	INDEX(state),
+	INDEX(action),
+
+	CONSTRAINT q_state_predecessor
+		FOREIGN KEY (state)
+		REFERENCES adp_states(s_id)
+		ON UPDATE CASCADE ON DELETE SET NULL,
+
+    CONSTRAINT q_state_action
+      FOREIGN KEY (action)
+      REFERENCES actions(a_id)
+      ON UPDATE CASCADE ON DELETE SET NULL
+
+) ENGINE=InnoDB DEFAULT CHARSET=latin1;
+
+CREATE TABLE IF NOT EXISTS transitions (
+	t_id INT NOT NULL AUTO_INCREMENT,
+	sState INT NULL,
+	action INT NULL,
+	sPrime INT NOT NULL,
+	reward INT SIGNED NULL DEFAULT 0,
+	count BIGINT UNSIGNED NULL DEFAULT 0,
+	
+	PRIMARY KEY(t_id),
+	UNIQUE transition_key (sState,action,sPrime),
+	INDEX(sState,action),
+	INDEX(sPrime),
+
+	CONSTRAINT q_state_key
+		FOREIGN KEY (sState,action)
+		REFERENCES q_states(state,action)
+		ON UPDATE CASCADE ON DELETE SET NULL,
+
+    CONSTRAINT successor_state
+      FOREIGN KEY (sPrime)
+      REFERENCES adp_states(s_id)
+      ON UPDATE CASCADE ON DELETE SET NULL
+
+) ENGINE=InnoDB DEFAULT CHARSET=latin1;
+
+CREATE TABLE IF NOT EXISTS history (
+	id INT NOT NULL AUTO_INCREMENT,
+	percept INT NULL DEFAULT NULL,
+	systemState INT NULL DEFAULT NULL,
+	transition INT NULL DEFAULT NULL,
+	manual_mode BIT(1) NULL DEFAULT 0,
+	night_mode BIT(1) NULL DEFAULT 0,
+
+	PRIMARY KEY(id),
+	UNIQUE history_value (percept,systemState,transition,manual_mode,night_mode),
+	INDEX(percept),
+	INDEX(systemState),
+	INDEX(transition),
+
+	CONSTRAINT percept_key
+	  FOREIGN KEY (percept)
+	  REFERENCES percepts(p_id)
+	  ON UPDATE CASCADE ON DELETE SET NULL,
+
+	CONSTRAINT system_state_key
+	  FOREIGN KEY (systemState)
+	  REFERENCES system_states(s_id)
+	  ON UPDATE CASCADE ON DELETE SET NULL,
+
+    CONSTRAINT transition_key
+      FOREIGN KEY (transition)
+      REFERENCES transitions(t_id)
+      ON UPDATE CASCADE ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1;
+
+
+CREATE DATABASE IF NOT EXISTS heating_controller DEFAULT CHARACTER SET = latin1;
+CREATE USER 'heating_logger'@'localhost' IDENTIFIED BY 'heating';
+GRANT CREATE,LOCK TABLES,ALTER,DELETE,INDEX,INSERT,SELECT,UPDATE ON heating_controller.* TO 'heating_logger'@'localhost';
+FLUSH PRIVILEGES;
+
+UPDATE adp_states SET uValue = '1', counter = '1' WHERE name = 'Emil Entenich'
+select BIN(burnerState) from action;
+
+INSERT INTO adp_state (kettleLevel,circulationValue)
+	VALUES (3,0.25),(4,0.75);
+
+ALTER TABLE adp_state MODIFY circulationValue FLOAT UNSIGNED NULL DEFAULT NULL, hForeReverseDiffDelta FLOAT SIGNED NULL DEFAULT NULL;
+
+ALTER TABLE adp_state ADD UNIQUE value_key (kettleLevel, circulationValue, hForeReverseDiffDelta);
+ALTER TABLE adp_state DROP KEY fingerprint;
+ALTER TABLE q_states MODIFY CONSTRAINT q_states_ibfk_1 FOREIGN KEY (state) REFERENCES adp_state(s_id) ON UPDATE CASCADE ON DELETE SET NULL;

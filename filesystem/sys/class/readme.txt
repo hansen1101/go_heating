@@ -1,0 +1,1 @@
+Ensure that a symbolic link named 'gpio' exists in this directory, which points to the system's gpio directory (e.g. /sys/class/gpio).
